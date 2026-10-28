@@ -10,9 +10,15 @@ app.controller('statsCtrl', function($scope){
 
   var updateScores = function(){
     socket.on('scores', function (json) {
-       data = JSON.parse(json);
-       var a = parseInt(data.a || 0);
-       var b = parseInt(data.b || 0);
+       var data;
+       try {
+         data = JSON.parse(json);
+       } catch (e) {
+         console.error('Ignoring malformed scores message', e);
+         return;
+       }
+       var a = parseInt(data.a || 0, 10);
+       var b = parseInt(data.b || 0, 10);
 
        var percentages = getPercentages(a, b);
 

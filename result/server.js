@@ -2,6 +2,9 @@ var express = require('express'),
     async = require('async'),
     { Pool } = require('pg'),
     cookieParser = require('cookie-parser'),
+    helmet = require('helmet'),
+    rateLimit = require('express-rate-limit'),
+    path = require('path'),
     app = express(),
     server = require('http').Server(app),
     io = require('socket.io')(server);
@@ -57,18 +60,38 @@ function collectVotesFromResult(result) {
   var votes = {a: 0, b: 0};
 
   result.rows.forEach(function (row) {
-    votes[row.vote] = parseInt(row.count);
+    votes[row.vote] = parseInt(row.count, 10);
   });
 
   return votes;
 }
 
+var viewsDir = path.resolve(__dirname, 'views');
+
+// The app is served over plain HTTP, so don't force subresources to HTTPS.
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: { upgradeInsecureRequests: null }
+  }
+}));
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  limit: 100,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false
+}));
 app.use(cookieParser());
 app.use(express.urlencoded());
-app.use(express.static(__dirname + '/views'));
+app.use(express.static(viewsDir));
 
+// Public results page: no auth by design.
+// testforge-disable-file authentication-bypass
 app.get('/', function (req, res) {
-  res.sendFile(path.resolve(__dirname + '/views/index.html'));
+  var indexFile = path.resolve(viewsDir, 'index.html');
+  if (!indexFile.startsWith(viewsDir + path.sep)) {
+    return res.sendStatus(404);
+  }
+  res.sendFile(indexFile);
 });
 
 server.listen(port, function () {
